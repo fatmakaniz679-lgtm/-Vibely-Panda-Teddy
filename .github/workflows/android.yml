@@ -74,6 +74,12 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      - name: Show Kotlin compile-error context
+        run: |
+          FILE="$PROJECT_DIR/app/src/main/java/com/example/vibely/ui/home/VirtualHomeScreen.kt"
+          echo "---- VirtualHomeScreen.kt lines 415-438 ----"
+          nl -ba "$FILE" | sed -n '415,438p'
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
         working-directory: ${{ env.PROJECT_DIR }}
