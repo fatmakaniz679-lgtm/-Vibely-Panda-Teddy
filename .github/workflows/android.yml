@@ -74,11 +74,19 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Show Kotlin compile-error context
+      - name: Fix Compose Dp offset expressions
         run: |
-          FILE="$PROJECT_DIR/app/src/main/java/com/example/vibely/ui/home/VirtualHomeScreen.kt"
-          echo "---- VirtualHomeScreen.kt lines 415-438 ----"
-          nl -ba "$FILE" | sed -n '415,438p'
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("$PROJECT_DIR/app/src/main/java/com/example/vibely/ui/home/VirtualHomeScreen.kt")
+          s = p.read_text()
+          s = s.replace("x = ((index % 5) - 2) * 54.dp,", "x = 54.dp * (((index % 5) - 2).toFloat()),")
+          s = s.replace("y = ((index / 5) - 1) * 50.dp + heartFloat.dp,", "y = 50.dp * (((index / 5) - 1).toFloat()) + heartFloat.dp,")
+          if "x = ((index % 5) - 2) * 54.dp," in s or "y = ((index / 5) - 1) * 50.dp + heartFloat.dp," in s:
+              raise SystemExit("Expected Compose offset expressions were not replaced")
+          p.write_text(s)
+          PY
+          echo "Patched heart overlay Dp offsets."
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
