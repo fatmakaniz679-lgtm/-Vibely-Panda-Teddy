@@ -28,31 +28,37 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Extract uploaded project ZIP
+      - name: Extract project ZIP
         run: |
           mkdir -p source
           ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' | head -n 1)"
           if [ -z "$ZIP_FILE" ]; then
-            echo "No project ZIP found. Upload Vibely-Panda-Teddy-Upgraded.zip to the repository root."
+            echo "Project ZIP not found in repository."
             exit 1
           fi
           unzip -q "$ZIP_FILE" -d source
-          GRADLEW="$(find source -type f -name gradlew -print -quit)"
-          if [ -z "$GRADLEW" ]; then
-            echo "Could not find gradlew inside the ZIP."
+          BUILD_FILE="$(find source -type f -name settings.gradle.kts -o -name settings.gradle | head -n 1)"
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Gradle settings file not found in uploaded ZIP."
             exit 1
           fi
-          PROJECT_DIR="$(dirname "$GRADLEW")"
+          PROJECT_DIR="$(dirname "$BUILD_FILE")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          chmod +x "$GRADLEW"
+          echo "Project directory: $PROJECT_DIR"
+
+      - name: Install Gradle 9.3.1
+        run: |
+          curl -fL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-9.3.1/bin" >> "$GITHUB_PATH"
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug
         working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Vibely-Panda-Teddy-APK
-          path: source/**/app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
