@@ -3,6 +3,10 @@ name: Build Vibely Android APK
 on:
   push:
     branches: [ main ]
+    paths:
+      - '*.zip'
+      - '**/*.zip'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -24,15 +28,31 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x ./gradlew
+      - name: Extract uploaded project ZIP
+        run: |
+          mkdir -p source
+          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' | head -n 1)"
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No project ZIP found. Upload Vibely-Panda-Teddy-Upgraded.zip to the repository root."
+            exit 1
+          fi
+          unzip -q "$ZIP_FILE" -d source
+          GRADLEW="$(find source -type f -name gradlew -print -quit)"
+          if [ -z "$GRADLEW" ]; then
+            echo "Could not find gradlew inside the ZIP."
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$GRADLEW")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          chmod +x "$GRADLEW"
 
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Vibely-Panda-Teddy-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: source/**/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
