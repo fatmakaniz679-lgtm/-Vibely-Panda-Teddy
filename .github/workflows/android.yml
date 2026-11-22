@@ -27,17 +27,25 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
+
+      - name: Install Android platform and build tools
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Extract project ZIP
         run: |
           mkdir -p source
-          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' | head -n 1)"
+          ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' -print -quit)"
           if [ -z "$ZIP_FILE" ]; then
             echo "Project ZIP not found in repository."
             exit 1
           fi
           unzip -q "$ZIP_FILE" -d source
-          BUILD_FILE="$(find source -type f -name settings.gradle.kts -o -name settings.gradle | head -n 1)"
+          BUILD_FILE="$(find source -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit)"
           if [ -z "$BUILD_FILE" ]; then
             echo "Gradle settings file not found in uploaded ZIP."
             exit 1
