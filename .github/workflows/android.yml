@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Android platform and build tools
         run: |
-          yes | sdkmanager --licenses
+          yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Extract project ZIP
@@ -59,6 +59,20 @@ jobs:
           curl -fL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp
           echo "/tmp/gradle-9.3.1/bin" >> "$GITHUB_PATH"
+
+      - name: Generate local debug signing keystore
+        run: |
+          if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$PROJECT_DIR/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
