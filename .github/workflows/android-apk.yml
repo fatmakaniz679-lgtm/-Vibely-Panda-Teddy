@@ -1,4 +1,4 @@
-name: Build Fresh Vibely APK
+name: Build and Verify Vibely APK
 on:
   push:
     branches: [vibely-rebuild-clean]
@@ -30,12 +30,23 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build fresh APK
-        run: gradle --no-daemon :app:assembleDebug
-      - name: Verify APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+        run: gradle --no-daemon clean :app:assembleDebug
+      - name: Verify APK structure, package and signature
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/aapt" dump badging "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/zipalign" -c -v 4 "$APK"
+          mkdir -p release
+          cp "$APK" release/Vibely-Panda-Teddy-v2.0.1.apk
+          test -s release/Vibely-Panda-Teddy-v2.0.1.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Vibely-Panda-Teddy-v2.0.0-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Vibely-Panda-Teddy-v2.0.1-APK
+          path: release/Vibely-Panda-Teddy-v2.0.1.apk
           if-no-files-found: error
           retention-days: 30
