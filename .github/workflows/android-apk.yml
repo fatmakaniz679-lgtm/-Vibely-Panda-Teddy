@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'Vibely-Panda-Teddy-Upgraded-Source.zip'
+      - 'Vibely-Panda-Teddy-Upgraded (1).zip'
       - '.github/workflows/android-apk.yml'
 
 permissions:
@@ -17,13 +18,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify updated source ZIP
+      - name: Select and verify source ZIP
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="Vibely-Panda-Teddy-Upgraded-Source.zip"
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "::error::Updated source ZIP is missing. Upload Vibely-Panda-Teddy-Upgraded-Source.zip to the repository root."
+          if [ -f "Vibely-Panda-Teddy-Upgraded-Source.zip" ]; then
+            ZIP_FILE="Vibely-Panda-Teddy-Upgraded-Source.zip"
+            echo "Using latest upgraded source archive."
+          elif [ -f "Vibely-Panda-Teddy-Upgraded (1).zip" ]; then
+            ZIP_FILE="Vibely-Panda-Teddy-Upgraded (1).zip"
+            echo "::warning::Latest source archive is not in the repository; building the existing repository archive instead."
+          else
+            echo "::error::No project ZIP found in repository root."
             exit 1
           fi
           mkdir -p extracted
@@ -33,10 +39,13 @@ jobs:
             BUILD_FILE="$(find extracted -type f -name settings.gradle -print -quit)"
           fi
           if [ -z "$BUILD_FILE" ]; then
-            echo "::error::No Gradle Android project found in the updated ZIP."
+            echo "::error::No Gradle Android project found in selected ZIP."
             exit 1
           fi
-          echo "PROJECT_DIR=$(dirname "$BUILD_FILE")" >> "$GITHUB_ENV"
+          PROJECT_DIR="$(dirname "$BUILD_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Selected archive: $ZIP_FILE"
+          echo "Project directory: $PROJECT_DIR"
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -46,12 +55,12 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: ''
 
       - name: Install Android platform and build tools
         shell: bash
-        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -84,6 +93,11 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: gradle --no-daemon assembleDebug
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          test -n "$(find "$PROJECT_DIR/app/build/outputs/apk" -type f -name '*.apk' -print -quit)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
