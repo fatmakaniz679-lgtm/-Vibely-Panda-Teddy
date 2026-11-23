@@ -1,107 +1,36 @@
-name: Build Updated Vibely APK
-
+name: Build Fresh Vibely APK
 on:
-  workflow_dispatch:
   push:
-    paths:
-      - 'Vibely-Panda-Teddy-Upgraded-Source.zip'
-      - 'Vibely-Panda-Teddy-Upgraded (1).zip'
-      - '.github/workflows/android-apk.yml'
-
+    branches: [vibely-rebuild-clean]
+  workflow_dispatch:
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Select and verify source ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f "Vibely-Panda-Teddy-Upgraded-Source.zip" ]; then
-            ZIP_FILE="Vibely-Panda-Teddy-Upgraded-Source.zip"
-            echo "Using latest upgraded source archive."
-          elif [ -f "Vibely-Panda-Teddy-Upgraded (1).zip" ]; then
-            ZIP_FILE="Vibely-Panda-Teddy-Upgraded (1).zip"
-            echo "::warning::Latest source archive is not in the repository; building the existing repository archive instead."
-          else
-            echo "::error::No project ZIP found in repository root."
-            exit 1
-          fi
-          mkdir -p extracted
-          unzip -oq "$ZIP_FILE" -d extracted
-          BUILD_FILE="$(find extracted -type f -name settings.gradle.kts -print -quit)"
-          if [ -z "$BUILD_FILE" ]; then
-            BUILD_FILE="$(find extracted -type f -name settings.gradle -print -quit)"
-          fi
-          if [ -z "$BUILD_FILE" ]; then
-            echo "::error::No Gradle Android project found in selected ZIP."
-            exit 1
-          fi
-          PROJECT_DIR="$(dirname "$BUILD_FILE")"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Selected archive: $ZIP_FILE"
-          echo "Project directory: $PROJECT_DIR"
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install Android platform and build tools
-        shell: bash
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
-
-      - name: Create debug signing key
-        shell: bash
-        run: keytool -genkeypair -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Patch known Compose Dp offset expressions
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          root = Path(os.environ["PROJECT_DIR"])
-          matches = list(root.rglob("VirtualHomeScreen.kt"))
-          if len(matches) == 1:
-              p = matches[0]
-              s = p.read_text()
-              s = s.replace("x = ((index % 5) - 2) * 54.dp,", "x = 54.dp * (((index % 5) - 2).toFloat()),")
-              s = s.replace("y = ((index / 5) - 1) * 50.dp + heartFloat.dp,", "y = 50.dp * (((index / 5) - 1).toFloat()) + heartFloat.dp,")
-              p.write_text(s)
-          elif len(matches) > 1:
-              raise SystemExit(f"Ambiguous VirtualHomeScreen.kt: {matches}")
-          PY
-
+          gradle-version: '8.11.1'
       - name: Build debug APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        shell: bash
-        run: gradle --no-daemon assembleDebug
-
-      - name: Verify APK output
-        shell: bash
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK
         run: |
-          test -n "$(find "$PROJECT_DIR/app/build/outputs/apk" -type f -name '*.apk' -print -quit)"
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          file "$APK"
+      - uses: actions/upload-artifact@v4
         with:
-          name: Vibely-Panda-Teddy-Updated-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          name: Vibely-Panda-Teddy-FRESH-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
