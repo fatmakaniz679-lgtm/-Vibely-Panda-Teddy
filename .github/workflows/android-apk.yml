@@ -28,7 +28,10 @@ jobs:
           fi
           mkdir -p extracted
           unzip -oq "$ZIP_FILE" -d extracted
-          BUILD_FILE="$(find extracted -type f \\( -name settings.gradle -o -name settings.gradle.kts \\) -print -quit)"
+          BUILD_FILE="$(find extracted -type f -name settings.gradle.kts -print -quit)"
+          if [ -z "$BUILD_FILE" ]; then
+            BUILD_FILE="$(find extracted -type f -name settings.gradle -print -quit)"
+          fi
           if [ -z "$BUILD_FILE" ]; then
             echo "::error::No Gradle Android project found in the updated ZIP."
             exit 1
@@ -43,13 +46,12 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-          with:
-            packages: ''
+        with:
+          packages: ''
 
       - name: Install Android platform and build tools
         shell: bash
-        run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -58,16 +60,7 @@ jobs:
 
       - name: Create debug signing key
         shell: bash
-        run: |
-          keytool -genkeypair -v \\
-            -keystore "$PROJECT_DIR/debug.keystore" \\
-            -storepass android \\
-            -alias androiddebugkey \\
-            -keypass android \\
-            -keyalg RSA \\
-            -keysize 2048 \\
-            -validity 10000 \\
-            -dname "CN=Android Debug,O=Android,C=US"
+        run: keytool -genkeypair -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Patch known Compose Dp offset expressions
         shell: bash
